@@ -64,6 +64,7 @@ export interface AgentData {
  * - hq-mayor → infrastructure agent (session matches directly)
  * - gastown_ui-witness → rig agent (rig-role)
  * - gastown_ui-polecat-furiosa → polecat (rig-polecat-name)
+ * - gastown_ui-crew-chris → crew member (rig-crew-name)
  */
 function findAgent(status: GtStatus, urlId: string): { agent: GtAgent; rig?: string } | null {
 	// Check infrastructure agents (hq-* prefix)
@@ -77,15 +78,16 @@ function findAgent(status: GtStatus, urlId: string): { agent: GtAgent; rig?: str
 	const parts = urlId.split('-');
 	if (parts.length < 2) return null;
 
-	// Check for polecat format: rig-polecat-name
-	if (parts.length >= 3 && parts[1] === 'polecat') {
+	// Check for polecat/crew format: rig-polecat-name or rig-crew-name
+	if (parts.length >= 3 && (parts[1] === 'polecat' || parts[1] === 'crew')) {
 		const rigName = parts[0];
-		const polecatName = parts.slice(2).join('-');
+		const agentRole = parts[1]; // 'polecat' or 'crew'
+		const agentName = parts.slice(2).join('-');
 
 		for (const rig of status.rigs) {
 			if (rig.name === rigName) {
 				const agent = rig.agents.find(
-					(a) => a.role === 'polecat' && a.name === polecatName
+					(a) => a.role === agentRole && a.name === agentName
 				);
 				if (agent) return { agent, rig: rigName };
 			}
@@ -172,7 +174,10 @@ export const load: PageServerLoad = async ({ params }) => {
 
 /**
  * Build agent target from URL ID
- * Converts URL IDs like "gastown_ui-polecat-furiosa" to "gastown_ui/furiosa"
+ * Converts URL IDs like:
+ * - "gastown_ui-polecat-furiosa" to "gastown_ui/furiosa"
+ * - "gastown_ui-crew-chris" to "gastown_ui/crew/chris"
+ * - "gastown_ui-witness" to "gastown_ui/witness"
  */
 function buildAgentTarget(urlId: string): string | null {
 	const parts = urlId.split('-');
@@ -183,6 +188,13 @@ function buildAgentTarget(urlId: string): string | null {
 		const rigName = parts[0];
 		const polecatName = parts.slice(2).join('-');
 		return `${rigName}/${polecatName}`;
+	}
+
+	// Crew format: rig-crew-name → rig/crew/name
+	if (parts.length >= 3 && parts[1] === 'crew') {
+		const rigName = parts[0];
+		const crewName = parts.slice(2).join('-');
+		return `${rigName}/crew/${crewName}`;
 	}
 
 	// Rig agent format: rig-role → rig/role
