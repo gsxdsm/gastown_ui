@@ -92,14 +92,8 @@
 			if (!res.ok) return;
 			const status = await res.json();
 
-			// Overseer unread mail
+			// Only show overseer's personal unread mail (matches inbox behavior)
 			unreadMail = status.overseer?.unread_mail ?? 0;
-
-			// Sum agent unread mail as well
-			const agentMail = status.agents?.reduce((sum: number, a: { unread_mail?: number }) => sum + (a.unread_mail ?? 0), 0) ?? 0;
-			const rigAgentMail = status.rigs?.reduce((sum: number, r: { agents?: Array<{ unread_mail?: number }> }) =>
-				sum + (r.agents?.reduce((s: number, a) => s + (a.unread_mail ?? 0), 0) ?? 0), 0) ?? 0;
-			unreadMail += agentMail + rigAgentMail;
 
 			// Escalation count (placeholder - will be implemented when escalations API is ready)
 			escalationCount = status.escalation_count ?? 0;
