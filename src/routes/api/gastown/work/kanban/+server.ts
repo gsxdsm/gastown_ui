@@ -26,15 +26,21 @@ interface KanbanColumn {
 interface KanbanResponse {
 	todo: BeadIssue[];
 	inProgress: BeadIssue[];
+	inReview: BeadIssue[];
+	done: BeadIssue[];
+	cancelled: BeadIssue[];
 }
 
-/** GET: Fetch kanban data - ready issues and in-progress issues */
+/** GET: Fetch kanban data - all status columns */
 export const GET: RequestHandler = async () => {
 	try {
-		// Run both commands in parallel
-		const [readyResult, inProgressResult] = await Promise.allSettled([
+		// Run all status commands in parallel
+		const [readyResult, inProgressResult, inReviewResult, doneResult, cancelledResult] = await Promise.allSettled([
 			execAsync('bd ready --json'),
-			execAsync('bd list --status=in_progress --json')
+			execAsync('bd list --status=in_progress --json'),
+			execAsync('bd list --status=in_review --json'),
+			execAsync('bd list --status=closed --json'),
+			execAsync('bd list --status=cancelled --json')
 		]);
 
 		// Parse todo issues from "bd ready"
@@ -48,7 +54,7 @@ export const GET: RequestHandler = async () => {
 			}
 		}
 
-		// Parse in-progress issues from "bd list --status=in_progress"
+		// Parse in-progress issues
 		let inProgressIssues: BeadIssue[] = [];
 		if (inProgressResult.status === 'fulfilled') {
 			try {
@@ -59,9 +65,45 @@ export const GET: RequestHandler = async () => {
 			}
 		}
 
+		// Parse in-review issues
+		let inReviewIssues: BeadIssue[] = [];
+		if (inReviewResult.status === 'fulfilled') {
+			try {
+				const stdout = inReviewResult.value.stdout.trim();
+				inReviewIssues = stdout ? JSON.parse(stdout) : [];
+			} catch {
+				inReviewIssues = [];
+			}
+		}
+
+		// Parse done/closed issues
+		let doneIssues: BeadIssue[] = [];
+		if (doneResult.status === 'fulfilled') {
+			try {
+				const stdout = doneResult.value.stdout.trim();
+				doneIssues = stdout ? JSON.parse(stdout) : [];
+			} catch {
+				doneIssues = [];
+			}
+		}
+
+		// Parse cancelled issues
+		let cancelledIssues: BeadIssue[] = [];
+		if (cancelledResult.status === 'fulfilled') {
+			try {
+				const stdout = cancelledResult.value.stdout.trim();
+				cancelledIssues = stdout ? JSON.parse(stdout) : [];
+			} catch {
+				cancelledIssues = [];
+			}
+		}
+
 		const response: KanbanResponse = {
 			todo: todoIssues,
-			inProgress: inProgressIssues
+			inProgress: inProgressIssues,
+			inReview: inReviewIssues,
+			done: doneIssues,
+			cancelled: cancelledIssues
 		};
 
 		return json(response);
@@ -70,7 +112,10 @@ export const GET: RequestHandler = async () => {
 		// Return empty kanban on error
 		return json({
 			todo: [],
-			inProgress: []
+			inProgress: [],
+			inReview: [],
+			done: [],
+			cancelled: []
 		});
 	}
 };

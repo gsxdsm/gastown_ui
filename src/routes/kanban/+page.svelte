@@ -19,16 +19,19 @@
 	interface KanbanData {
 		todo: BeadIssue[];
 		inProgress: BeadIssue[];
+		inReview: BeadIssue[];
+		done: BeadIssue[];
+		cancelled: BeadIssue[];
 	}
 
 	// Data state
-	let kanbanData = $state<KanbanData>({ todo: [], inProgress: [] });
+	let kanbanData = $state<KanbanData>({ todo: [], inProgress: [], inReview: [], done: [], cancelled: [] });
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
 	// Drag and drop state
 	let draggedIssue = $state<BeadIssue | null>(null);
-	let draggedFromColumn = $state<'todo' | 'inProgress' | null>(null);
+	let draggedFromColumn = $state<'todo' | 'inProgress' | 'inReview' | 'done' | 'cancelled' | null>(null);
 	let dropping = $state(false);
 
 	// Modal state for creating issues
@@ -90,7 +93,7 @@
 	}
 
 	// Drag and drop handlers
-	function handleDragStart(issue: BeadIssue, column: 'todo' | 'inProgress', e: DragEvent) {
+	function handleDragStart(issue: BeadIssue, column: 'todo' | 'inProgress' | 'inReview' | 'done' | 'cancelled', e: DragEvent) {
 		draggedIssue = issue;
 		draggedFromColumn = column;
 		if (e.dataTransfer) {
@@ -110,7 +113,7 @@
 		// Optional: visual feedback when dragging leaves a column
 	}
 
-	async function handleDrop(targetColumn: 'todo' | 'inProgress', e: DragEvent) {
+	async function handleDrop(targetColumn: 'todo' | 'inProgress' | 'inReview' | 'done' | 'cancelled', e: DragEvent) {
 		e.preventDefault();
 		if (!draggedIssue || !draggedFromColumn || draggedFromColumn === targetColumn) {
 			draggedIssue = null;
@@ -123,8 +126,18 @@
 		const fromColumn = draggedFromColumn;
 
 		try {
-			// Update status via API - correct path is /status
-			const newStatus = targetColumn === 'inProgress' ? 'in_progress' : 'todo';
+			// Map column names to API status values
+			const statusMap: Record<typeof targetColumn, string> = {
+				todo: 'open',
+				inProgress: 'in_progress',
+				inReview: 'in_review',
+				done: 'closed',
+				cancelled: 'cancelled'
+			};
+
+			const newStatus = statusMap[targetColumn];
+
+			// Update status via API
 			const res = await fetch(`/api/gastown/work/issues/${issue.id}/status`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
@@ -135,18 +148,17 @@
 				throw new Error('Failed to update issue status');
 			}
 
-			// Move the card in local state
-			if (fromColumn === 'todo') {
-				kanbanData.todo = kanbanData.todo.filter(i => i.id !== issue.id);
-			} else {
-				kanbanData.inProgress = kanbanData.inProgress.filter(i => i.id !== issue.id);
+			// Remove from source column
+			const columns = ['todo', 'inProgress', 'inReview', 'done', 'cancelled'] as const;
+			for (const col of columns) {
+				if (col === fromColumn) {
+					kanbanData[col] = kanbanData[col].filter(i => i.id !== issue.id);
+					break;
+				}
 			}
 
-			if (targetColumn === 'todo') {
-				kanbanData.todo.push({ ...issue, status: 'open' });
-			} else {
-				kanbanData.inProgress.push({ ...issue, status: 'in_progress', assignee: 'nux' });
-			}
+			// Add to target column
+			kanbanData[targetColumn].push({ ...issue, status: newStatus });
 		} catch (err) {
 			console.error('Failed to move issue:', err);
 			// Optionally show error message to user
@@ -225,7 +237,7 @@
 			<div class="container flex items-center justify-between">
 				<div>
 					<h1 class="text-xl font-semibold text-foreground">Kanban</h1>
-					<p class="text-sm text-muted-foreground">Work board: ready issues and in-progress</p>
+					<p class="text-sm text-muted-foreground">Work board: todo, in progress, in review, done, cancelled</p>
 				</div>
 				<button
 					onclick={() => showModal = true}
@@ -252,10 +264,10 @@
 				</div>
 			{:else}
 				<!-- Kanban Board -->
-				<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+				<div class="flex gap-4 overflow-x-auto pb-4">
 					<!-- Todo Column -->
 					<section
-						class="panel-glass p-4 {dropping && draggedFromColumn !== 'todo' ? 'ring-2 ring-primary' : ''}"
+						class="panel-glass p-4 min-w-[280px] flex-shrink-0 {dropping && draggedFromColumn !== 'todo' ? 'ring-2 ring-primary' : ''}"
 						ondragover={handleDragOver}
 						ondragleave={handleDragLeave}
 						ondrop={(e) => handleDrop('todo', e)}
@@ -304,7 +316,7 @@
 
 					<!-- In Progress Column -->
 					<section
-						class="panel-glass p-4 {dropping && draggedFromColumn !== 'inProgress' ? 'ring-2 ring-primary' : ''}"
+						class="panel-glass p-4 min-w-[280px] flex-shrink-0 {dropping && draggedFromColumn !== 'inProgress' ? 'ring-2 ring-primary' : ''}"
 						ondragover={handleDragOver}
 						ondragleave={handleDragLeave}
 						ondrop={(e) => handleDrop('inProgress', e)}
@@ -344,6 +356,156 @@
 													</span>
 													<span class="text-xs px-2 py-0.5 rounded bg-info/10 text-info border border-info/30">
 														{formatAssignee(issue.assignee)}
+													</span>
+												</div>
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					<!-- In Review Column -->
+					<section
+						class="panel-glass p-4 min-w-[280px] flex-shrink-0 {dropping && draggedFromColumn !== 'inReview' ? 'ring-2 ring-primary' : ''}"
+						ondragover={handleDragOver}
+						ondragleave={handleDragLeave}
+						ondrop={(e) => handleDrop('inReview', e)}
+					>
+						<div class="flex items-center justify-between mb-4">
+							<h2 class="font-semibold text-foreground flex items-center gap-2">
+								<span class="w-3 h-3 rounded-full bg-purple-500"></span>
+								In Review ({kanbanData.inReview.length})
+							</h2>
+						</div>
+						{#if kanbanData.inReview.length === 0}
+							<p class="text-sm text-muted-foreground text-center py-8">No issues in review</p>
+						{:else}
+							<div class="space-y-3">
+								{#each kanbanData.inReview as issue (issue.id)}
+									<div
+										draggable="true"
+										ondragstart={(e) => handleDragStart(issue, 'inReview', e)}
+										onclick={() => navigateToIssue(issue.id)}
+										class="p-4 bg-muted/30 rounded-lg border border-border hover:border-primary/50
+											   cursor-grab active:cursor-grabbing transition-all hover:shadow-md
+											   {draggedIssue?.id === issue.id ? 'opacity-50' : ''}"
+										role="button"
+										tabindex="0"
+										onkeydown={(e) => e.key === 'Enter' && navigateToIssue(issue.id)}
+									>
+										<div class="flex items-start gap-3">
+											<span class="font-mono text-xs text-primary flex-shrink-0">{issue.id}</span>
+											<div class="flex-1 min-w-0">
+												<h3 class="text-sm font-medium text-foreground truncate">{issue.title}</h3>
+												<div class="flex items-center gap-2 mt-2 flex-wrap">
+													<span class="text-xs px-2 py-0.5 rounded border {priorityLabels[issue.priority].class}">
+														{priorityLabels[issue.priority].label}
+													</span>
+													<span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+														{issue.issue_type}
+													</span>
+													<span class="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-500 border border-purple-500/30">
+														{formatAssignee(issue.assignee)}
+													</span>
+												</div>
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					<!-- Done Column -->
+					<section
+						class="panel-glass p-4 min-w-[280px] flex-shrink-0 {dropping && draggedFromColumn !== 'done' ? 'ring-2 ring-primary' : ''}"
+						ondragover={handleDragOver}
+						ondragleave={handleDragLeave}
+						ondrop={(e) => handleDrop('done', e)}
+					>
+						<div class="flex items-center justify-between mb-4">
+							<h2 class="font-semibold text-foreground flex items-center gap-2">
+								<span class="w-3 h-3 rounded-full bg-success"></span>
+								Done ({kanbanData.done.length})
+							</h2>
+						</div>
+						{#if kanbanData.done.length === 0}
+							<p class="text-sm text-muted-foreground text-center py-8">No completed issues</p>
+						{:else}
+							<div class="space-y-3">
+								{#each kanbanData.done as issue (issue.id)}
+									<div
+										draggable="true"
+										ondragstart={(e) => handleDragStart(issue, 'done', e)}
+										onclick={() => navigateToIssue(issue.id)}
+										class="p-4 bg-muted/30 rounded-lg border border-border hover:border-primary/50
+											   cursor-grab active:cursor-grabbing transition-all hover:shadow-md
+											   {draggedIssue?.id === issue.id ? 'opacity-50' : ''}"
+										role="button"
+										tabindex="0"
+										onkeydown={(e) => e.key === 'Enter' && navigateToIssue(issue.id)}
+									>
+										<div class="flex items-start gap-3">
+											<span class="font-mono text-xs text-primary flex-shrink-0">{issue.id}</span>
+											<div class="flex-1 min-w-0">
+												<h3 class="text-sm font-medium text-foreground truncate">{issue.title}</h3>
+												<div class="flex items-center gap-2 mt-2 flex-wrap">
+													<span class="text-xs px-2 py-0.5 rounded border {priorityLabels[issue.priority].class}">
+														{priorityLabels[issue.priority].label}
+													</span>
+													<span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+														{issue.issue_type}
+													</span>
+												</div>
+											</div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					<!-- Cancelled Column -->
+					<section
+						class="panel-glass p-4 min-w-[280px] flex-shrink-0 {dropping && draggedFromColumn !== 'cancelled' ? 'ring-2 ring-primary' : ''}"
+						ondragover={handleDragOver}
+						ondragleave={handleDragLeave}
+						ondrop={(e) => handleDrop('cancelled', e)}
+					>
+						<div class="flex items-center justify-between mb-4">
+							<h2 class="font-semibold text-foreground flex items-center gap-2">
+								<span class="w-3 h-3 rounded-full bg-destructive"></span>
+								Cancelled ({kanbanData.cancelled.length})
+							</h2>
+						</div>
+						{#if kanbanData.cancelled.length === 0}
+							<p class="text-sm text-muted-foreground text-center py-8">No cancelled issues</p>
+						{:else}
+							<div class="space-y-3">
+								{#each kanbanData.cancelled as issue (issue.id)}
+									<div
+										draggable="true"
+										ondragstart={(e) => handleDragStart(issue, 'cancelled', e)}
+										onclick={() => navigateToIssue(issue.id)}
+										class="p-4 bg-muted/30 rounded-lg border border-border hover:border-primary/50
+											   cursor-grab active:cursor-grabbing transition-all hover:shadow-md
+											   {draggedIssue?.id === issue.id ? 'opacity-50' : ''}"
+										role="button"
+										tabindex="0"
+										onkeydown={(e) => e.key === 'Enter' && navigateToIssue(issue.id)}
+									>
+										<div class="flex items-start gap-3">
+											<span class="font-mono text-xs text-primary flex-shrink-0">{issue.id}</span>
+											<div class="flex-1 min-w-0">
+												<h3 class="text-sm font-medium text-foreground truncate">{issue.title}</h3>
+												<div class="flex items-center gap-2 mt-2 flex-wrap">
+													<span class="text-xs px-2 py-0.5 rounded border {priorityLabels[issue.priority].class}">
+														{priorityLabels[issue.priority].label}
+													</span>
+													<span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground capitalize">
+														{issue.issue_type}
 													</span>
 												</div>
 											</div>
