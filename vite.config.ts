@@ -15,6 +15,9 @@ export default defineConfig({
 				brotliSize: true
 			})
 	].filter(Boolean),
+	server: {
+		allowedHosts: true
+	},
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}'],
 		globals: true,
