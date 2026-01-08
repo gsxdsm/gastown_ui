@@ -16,35 +16,45 @@ interface Issue {
 interface KanbanData {
 	todo: Issue[];
 	inProgress: Issue[];
+	inReview: Issue[];
 	done: Issue[];
+	cancelled: Issue[];
 	error: string | null;
 }
 
 export const load: PageServerLoad = async (): Promise<KanbanData> => {
 	try {
 		// Fetch all issues and categorize by status
-		const [readyResult, inProgressResult, doneResult] = await Promise.allSettled([
+		const [readyResult, inProgressResult, inReviewResult, doneResult, cancelledResult] = await Promise.allSettled([
 			fetchIssuesByStatus('open'),
 			fetchIssuesByStatus('in_progress'),
-			fetchIssuesByStatus('done')
+			fetchIssuesByStatus('in_review'),
+			fetchIssuesByStatus('done'),
+			fetchIssuesByStatus('cancelled')
 		]);
 
-		// Ready issues go to todo column
+		// Map results to columns
 		const todo = readyResult.status === 'fulfilled' ? readyResult.value : [];
 		const inProgress = inProgressResult.status === 'fulfilled' ? inProgressResult.value : [];
+		const inReview = inReviewResult.status === 'fulfilled' ? inReviewResult.value : [];
 		const done = doneResult.status === 'fulfilled' ? doneResult.value : [];
+		const cancelled = cancelledResult.status === 'fulfilled' ? cancelledResult.value : [];
 
 		return {
 			todo,
 			inProgress,
+			inReview,
 			done,
+			cancelled,
 			error: null
 		};
 	} catch (error) {
 		return {
 			todo: [],
 			inProgress: [],
+			inReview: [],
 			done: [],
+			cancelled: [],
 			error: error instanceof Error ? error.message : 'Failed to load issues'
 		};
 	}
