@@ -15,6 +15,15 @@ export default defineConfig({
 				brotliSize: true
 			})
 	].filter(Boolean),
+	// Allow external network access for development
+	server: {
+		host: '0.0.0.0', // Listen on all network interfaces
+		port: 5173,
+		strictPort: false,
+		watch: {
+			ignored: ['**/.beads/**', '**/node_modules/**']
+		}
+	},
 	test: {
 		include: ['src/**/*.{test,spec}.{js,ts}'],
 		globals: true,

@@ -51,19 +51,20 @@ export function generateCsrfToken(): string {
 
 /**
  * Get secure cookie options for CSRF token
+ * In development, uses 'lax' for sameSite to allow external network access
  */
 function getCsrfCookieOptions(httpOnly: boolean): {
 	path: string;
 	httpOnly: boolean;
 	secure: boolean;
-	sameSite: 'strict';
+	sameSite: 'strict' | 'lax';
 	maxAge: number;
 } {
 	return {
 		path: '/',
 		httpOnly,
 		secure: isProduction(),
-		sameSite: 'strict',
+		sameSite: isProduction() ? 'strict' : 'lax',
 		maxAge: CSRF_TOKEN_EXPIRY
 	};
 }
@@ -95,7 +96,7 @@ export function clearCsrfTokens(cookies: Cookies): void {
 		path: '/',
 		httpOnly: true,
 		secure: isProduction(),
-		sameSite: 'strict' as const
+		sameSite: (isProduction() ? 'strict' : 'lax') as 'strict' | 'lax'
 	};
 
 	cookies.delete(CSRF_COOKIES.CSRF_TOKEN, clearOptions);
