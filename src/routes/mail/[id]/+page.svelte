@@ -2,9 +2,42 @@
 	import { tv } from 'tailwind-variants';
 	import { GridPattern } from '$lib/components';
 	import type { PageData } from './$types';
-	import { ArrowLeft, Reply, Forward } from 'lucide-svelte';
+	import { ArrowLeft, Reply, Forward, Archive, Loader2 } from 'lucide-svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	// State
+	let isArchiving = $state(false);
+	let archiveSuccess = $state(false);
+
+	/**
+	 * Archive the current message
+	 */
+	async function archiveMessage() {
+		isArchiving = true;
+		try {
+			const res = await fetch('/api/gastown/mail/archive', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ messageIds: [data.message.id] })
+			});
+
+			if (!res.ok) {
+				throw new Error('Failed to archive message');
+			}
+
+			archiveSuccess = true;
+			// Redirect to mail inbox after a short delay
+			setTimeout(() => {
+				window.location.href = '/mail';
+			}, 500);
+		} catch (error) {
+			console.error('Failed to archive message:', error);
+			alert('Failed to archive message');
+		} finally {
+			isArchiving = false;
+		}
+	}
 
 	/**
 	 * Message type badge variants
@@ -185,6 +218,20 @@
 
 				<!-- Actions -->
 				<div class="px-6 py-4 border-t border-border flex items-center gap-3">
+					<button
+						onclick={archiveMessage}
+						disabled={isArchiving || archiveSuccess}
+						class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-md transition-colors disabled:opacity-50"
+					>
+						{#if isArchiving}
+							<Loader2 class="w-4 h-4 animate-spin" strokeWidth={2} />
+						{:else if archiveSuccess}
+							<Loader2 class="w-4 h-4 animate-spin" strokeWidth={2} />
+						{:else}
+							<Archive class="w-4 h-4" strokeWidth={2} />
+						{/if}
+						{archiveSuccess ? 'Archived...' : 'Archive'}
+					</button>
 					<a
 						href="/mail/compose?to={encodeURIComponent(data.message.from)}&subject={encodeURIComponent('Re: ' + data.message.subject)}"
 						class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground bg-muted/30 hover:bg-muted/50 rounded-md transition-colors"
