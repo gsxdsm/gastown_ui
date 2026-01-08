@@ -34,6 +34,22 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 		const { stdout } = await execAsync(cmd);
 
 		const result = JSON.parse(stdout);
+
+		// Auto-sling work when moved to in-progress column (hq-cslr)
+		if (normalizedStatus === 'in_progress') {
+			try {
+				const rig = process.env.GT_RIG || 'gastown_ui';
+				// Sanitize rig name to prevent command injection
+				const sanitizedRig = rig.replace(/[^a-zA-Z0-9_-]/g, '');
+				const slingCmd = `gt sling ${sanitizedId} ${sanitizedRig}`;
+				await execAsync(slingCmd);
+				console.log(`Auto-slung ${sanitizedId} to ${sanitizedRig}`);
+			} catch (slingError) {
+				// Log sling error but don't fail the status update
+				console.error('Failed to auto-sling work:', slingError);
+			}
+		}
+
 		return json(result);
 	} catch (error) {
 		console.error('Failed to update issue status:', error);
