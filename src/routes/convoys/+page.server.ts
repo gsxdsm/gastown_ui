@@ -19,7 +19,7 @@ interface ConvoyDetail {
 	id: string;
 	title: string;
 	status: string;
-	tracked: TrackedIssue[];
+	tracked: TrackedIssue[] | null;
 	completed: number;
 	total: number;
 }
@@ -47,20 +47,23 @@ function determineConvoyStatus(detail: ConvoyDetail): ConvoyStatus {
 		return 'complete';
 	}
 
+	// Normalize null tracked to empty array
+	const tracked = detail.tracked ?? [];
+
 	// Check if any tracked issues are blocked
-	const hasBlocked = detail.tracked.some((t) => t.status === 'blocked');
+	const hasBlocked = tracked.some((t) => t.status === 'blocked');
 	if (hasBlocked) {
 		return 'stuck';
 	}
 
 	// Check if any tracked issues are actively being worked on
-	const hasInProgress = detail.tracked.some((t) => t.status === 'in_progress');
+	const hasInProgress = tracked.some((t) => t.status === 'in_progress');
 	if (hasInProgress) {
 		return 'active';
 	}
 
 	// All issues are open but none in progress
-	const allOpen = detail.tracked.every((t) => t.status === 'open');
+	const allOpen = tracked.every((t) => t.status === 'open');
 	if (allOpen && detail.total > 0) {
 		return 'stale';
 	}
@@ -99,7 +102,7 @@ export const load: PageServerLoad = async () => {
 					completed: detail.completed,
 					total: detail.total,
 					createdAt: summary.created_at,
-					tracked: detail.tracked
+					tracked: detail.tracked ?? []
 				};
 			}
 			// Fallback if detail fetch failed

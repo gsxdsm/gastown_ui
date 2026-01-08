@@ -30,7 +30,7 @@ interface ConvoyRaw {
 	id: string;
 	title: string;
 	status: string;
-	tracked: TrackedIssue[];
+	tracked: TrackedIssue[] | null;
 	completed: number;
 	total: number;
 	created_at?: string;
@@ -93,6 +93,9 @@ export const load: PageServerLoad = async ({ params }) => {
 
 		const raw: ConvoyRaw = JSON.parse(stdout);
 
+		// Normalize null tracked to empty array
+		const normalizedRaw = { ...raw, tracked: raw.tracked ?? [] };
+
 		// Try to get created_at from convoy list
 		let createdAt = raw.created_at || '';
 		if (!createdAt) {
@@ -113,14 +116,14 @@ export const load: PageServerLoad = async ({ params }) => {
 		const convoy: ConvoyDetail = {
 			id: raw.id,
 			title: raw.title,
-			status: determineConvoyStatus(raw),
+			status: determineConvoyStatus(normalizedRaw),
 			rawStatus: raw.status,
 			progress: raw.total > 0 ? Math.round((raw.completed / raw.total) * 100) : 0,
 			completed: raw.completed,
 			total: raw.total,
 			createdAt,
-			tracked: raw.tracked,
-			workers: extractWorkers(raw.tracked)
+			tracked: normalizedRaw.tracked,
+			workers: extractWorkers(normalizedRaw.tracked)
 		};
 
 		return { convoy, error: null };
