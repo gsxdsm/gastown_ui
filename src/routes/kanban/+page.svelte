@@ -2,6 +2,7 @@
 	import { GridPattern } from '$lib/components';
 	import { Plus, AlertCircle, Loader2 } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 
 	interface BeadIssue {
 		id: string;
@@ -21,9 +22,12 @@
 		inProgress: BeadIssue[];
 	}
 
-	// Data state
-	let kanbanData = $state<KanbanData>({ todo: [], inProgress: [] });
-	let loading = $state(true);
+	// Data passed from server load
+	let { data }: { data: KanbanData } = $props();
+
+	// Data state - initialize with server data (using a function to get current value)
+	let kanbanData = $state<KanbanData>({ ...data });
+	let loading = $state(false);
 	let error = $state<string | null>(null);
 
 	// Drag and drop state
@@ -63,7 +67,7 @@
 		4: { label: 'P4', class: 'text-muted-foreground bg-muted border-border' }
 	};
 
-	// Load kanban data
+	// Load kanban data (for client-side refresh after create/update)
 	async function loadKanban() {
 		loading = true;
 		error = null;
@@ -77,6 +81,11 @@
 			loading = false;
 		}
 	}
+
+	// Optional: refresh data on mount for latest data
+	onMount(() => {
+		loadKanban();
+	});
 
 	// Navigate to issue detail
 	function navigateToIssue(id: string) {
@@ -110,6 +119,18 @@
 		// Optional: visual feedback when dragging leaves a column
 	}
 
+	// Helper function to get CSRF token from cookie
+	function getCsrfToken(): string | null {
+		const cookies = document.cookie.split(';');
+		for (const cookie of cookies) {
+			const [name, value] = cookie.trim().split('=');
+			if (name === 'csrf_token_client') {
+				return value || null;
+			}
+		}
+		return null;
+	}
+
 	async function handleDrop(targetColumn: 'todo' | 'inProgress', e: DragEvent) {
 		e.preventDefault();
 		if (!draggedIssue || !draggedFromColumn || draggedFromColumn === targetColumn) {
@@ -125,9 +146,15 @@
 		try {
 			// Update status via API - correct path is /status
 			const newStatus = targetColumn === 'inProgress' ? 'in_progress' : 'todo';
+			const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+			const csrfToken = getCsrfToken();
+			if (csrfToken) {
+				headers['X-CSRF-Token'] = csrfToken;
+			}
+
 			const res = await fetch(`/api/gastown/work/issues/${issue.id}/status`, {
 				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
+				headers,
 				body: JSON.stringify({ status: newStatus })
 			});
 
@@ -164,9 +191,15 @@
 		message = null;
 
 		try {
+			const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+			const csrfToken = getCsrfToken();
+			if (csrfToken) {
+				headers['X-CSRF-Token'] = csrfToken;
+			}
+
 			const res = await fetch('/api/gastown/work/issues', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers,
 				body: JSON.stringify({
 					title: issueTitle,
 					type: issueType,
@@ -207,9 +240,6 @@
 			submitting = false;
 		}
 	}
-
-	// Load data on mount
-	loadKanban();
 </script>
 
 <svelte:head>
