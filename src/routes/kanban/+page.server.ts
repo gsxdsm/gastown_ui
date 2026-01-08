@@ -26,7 +26,7 @@ export const load: PageServerLoad = async (): Promise<KanbanData> => {
 		const [readyResult, inProgressResult, doneResult] = await Promise.allSettled([
 			fetchIssuesByStatus('open'),
 			fetchIssuesByStatus('in_progress'),
-			fetchIssuesByStatus('done')
+			fetchIssuesByStatus('closed')
 		]);
 
 		// Ready issues go to todo column
