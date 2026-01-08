@@ -2,7 +2,7 @@
 	import { tv } from 'tailwind-variants';
 	import { GridPattern } from '$lib/components';
 	import { cn } from '$lib/utils';
-	import { Plus, ChevronDown, ChevronRight, Mail, Loader2 } from 'lucide-svelte';
+	import { Plus, ChevronDown, ChevronRight, Mail, Loader2, Archive, ArchiveRestore, Check, CheckSquare, Square } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 
 	let { data }: { data: PageData } = $props();
@@ -13,6 +13,7 @@
 		address: string;
 		unreadCount: number;
 		role: string;
+		isArchive?: boolean;
 	}
 
 	interface MailMessage {
@@ -43,11 +44,32 @@
 	let messagesLoading = $state(false);
 	let mailboxesError = $state<string | null>(null);
 
+	// Archive state
+	let archivedMessageIds = $state<Set<string>>(new Set());
+	let archiveCount = $state<number>(0);
+	let viewMode = $state<'inbox' | 'archive'>('inbox');
+
+	// Bulk selection state
+	let selectedMessageIds = $state<Set<string>>(new Set());
+	let showBulkActions = $state<boolean>(false);
+
 	// Track which message is expanded
 	let expandedId = $state<string | null>(null);
 
 	// Mobile view: show list or messages
 	let mobileView = $state<'list' | 'messages'>('list');
+
+	/**
+	 * Filter messages based on view mode
+	 */
+	const filteredMessages = $derived(
+		mailboxMessages?.messages.filter((msg) => {
+			if (viewMode === 'archive') {
+				return archivedMessageIds.has(msg.id);
+			}
+			return !archivedMessageIds.has(msg.id);
+		}) ?? []
+	);
 
 	/**
 	 * Message type badge variants
@@ -146,12 +168,19 @@
 		selectedMailbox = mailbox;
 		messagesLoading = true;
 		mailboxMessages = null;
+		viewMode = 'inbox';
+		archivedMessageIds = new Set();
+		archiveCount = 0;
 
 		try {
 			const res = await fetch(`/api/gastown/mail/${mailbox.id}`);
 			if (!res.ok) throw new Error('Failed to load messages');
 			const data: MailboxResponse = await res.json();
 			mailboxMessages = data;
+
+			// Load archived messages for this mailbox
+			await loadArchivedMessages(mailbox.id);
+
 			mobileView = 'messages';
 		} catch (e) {
 			mailboxMessages = {
@@ -180,6 +209,162 @@
 		mobileView = 'list';
 	}
 
+	/**
+	 * Load archived message IDs for a mailbox
+	 */
+	async function loadArchivedMessages(mailboxId: string) {
+		try {
+			const res = await fetch(`/api/gastown/mail/archive/list?mailboxId=${mailboxId}`);
+			if (res.ok) {
+				const data = await res.json();
+				archivedMessageIds = new Set(data.archived);
+				archiveCount = data.count;
+			}
+		} catch (e) {
+			console.error('Failed to load archived messages:', e);
+		}
+	}
+
+	/**
+	 * Toggle archive state for a message
+	 */
+	async function toggleArchive(messageId: string) {
+		if (!selectedMailbox) return;
+
+		const isArchived = archivedMessageIds.has(messageId);
+		const action = isArchived ? 'unarchive' : 'archive';
+
+		try {
+			const res = await fetch('/api/gastown/mail/archive', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					mailboxId: selectedMailbox.id,
+					messageId,
+					action
+				})
+			});
+
+			if (res.ok) {
+				if (isArchived) {
+					archivedMessageIds.delete(messageId);
+					archiveCount--;
+				} else {
+					archivedMessageIds.add(messageId);
+					archiveCount++;
+				}
+			}
+		} catch (e) {
+			console.error('Failed to toggle archive:', e);
+		}
+	}
+
+	/**
+	 * Select archive view
+	 */
+	function selectArchiveView() {
+		viewMode = 'archive';
+		if (selectedMailbox) {
+			loadArchivedMessages(selectedMailbox.id);
+		}
+	}
+
+	/**
+	 * Select inbox view
+	 */
+	function selectInboxView() {
+		viewMode = 'inbox';
+	}
+
+	/**
+	 * Check if message is archived
+	 */
+	function isArchived(messageId: string): boolean {
+		return archivedMessageIds.has(messageId);
+	}
+
+	/**
+	 * Toggle message selection
+	 */
+	function toggleSelection(messageId: string) {
+		if (selectedMessageIds.has(messageId)) {
+			selectedMessageIds.delete(messageId);
+		} else {
+			selectedMessageIds.add(messageId);
+		}
+		showBulkActions = selectedMessageIds.size > 0;
+	}
+
+	/**
+	 * Select all visible messages
+	 */
+	function selectAll() {
+		selectedMessageIds = new Set(filteredMessages.map((m) => m.id));
+		showBulkActions = true;
+	}
+
+	/**
+	 * Clear selection
+	 */
+	function clearSelection() {
+		selectedMessageIds = new Set();
+		showBulkActions = false;
+	}
+
+	/**
+	 * Check if message is selected
+	 */
+	function isSelected(messageId: string): boolean {
+		return selectedMessageIds.has(messageId);
+	}
+
+	/**
+	 * Check if all visible messages are selected
+	 */
+	const allSelected = $derived(filteredMessages.length > 0 &&
+		filteredMessages.every((m) => selectedMessageIds.has(m.id)));
+
+	/**
+	 * Bulk archive selected messages
+	 */
+	async function bulkArchive() {
+		if (!selectedMailbox || selectedMessageIds.size === 0) return;
+
+		const action = viewMode === 'archive' ? 'unarchive' : 'archive';
+
+		try {
+			const res = await fetch('/api/gastown/mail/archive', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					mailboxId: selectedMailbox.id,
+					messageIds: Array.from(selectedMessageIds),
+					action
+				})
+			});
+
+			if (res.ok) {
+				const data = await res.json();
+
+				if (action === 'archive') {
+					for (const id of selectedMessageIds) {
+						archivedMessageIds.add(id);
+					}
+					archiveCount += selectedMessageIds.size;
+				} else {
+					for (const id of selectedMessageIds) {
+						archivedMessageIds.delete(id);
+					}
+					archiveCount -= selectedMessageIds.size;
+				}
+
+				clearSelection();
+			}
+		} catch (e) {
+			console.error('Failed to bulk archive:', e);
+		}
+	}
+
 	// Load mailboxes on mount
 	onMount(() => {
 		loadMailboxes();
@@ -205,9 +390,16 @@
 						<h1 class="text-xl font-semibold text-foreground">Mail</h1>
 						<p class="text-sm text-muted-foreground">
 							{#if selectedMailbox}
-								{selectedMailbox.name}
-								{#if mailboxMessages?.unreadCount}
-									<span class="text-accent font-medium">({mailboxMessages.unreadCount} unread)</span>
+								{#if viewMode === 'archive'}
+									{selectedMailbox.name} / Archived
+									{#if archiveCount > 0}
+										<span class="text-accent font-medium">({archiveCount})</span>
+									{/if}
+								{:else}
+									{selectedMailbox.name}
+									{#if mailboxMessages?.unreadCount}
+										<span class="text-accent font-medium">({mailboxMessages.unreadCount} unread)</span>
+									{/if}
 								{/if}
 							{:else}
 								{mailboxes.length} mailboxes
@@ -249,7 +441,7 @@
 										<li>
 											<button
 												class="w-full text-left px-3 py-2 rounded-lg transition-colors
-													{selectedMailbox?.id === mailbox.id
+													{selectedMailbox?.id === mailbox.id && viewMode === 'inbox'
 														? 'bg-accent text-accent-foreground'
 														: 'hover:bg-muted/50'}"
 												onclick={() => selectMailbox(mailbox)}
@@ -261,7 +453,7 @@
 													</span>
 													{#if mailbox.unreadCount > 0}
 														<span class="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full
-															{selectedMailbox?.id === mailbox.id
+															{selectedMailbox?.id === mailbox.id && viewMode === 'inbox'
 																? 'bg-accent-foreground text-accent'
 																: 'bg-accent text-accent-foreground'}">
 															{mailbox.unreadCount}
@@ -271,6 +463,51 @@
 											</button>
 										</li>
 									{/each}
+
+									<!-- Archive folder (shown when mailbox selected) -->
+									{#if selectedMailbox}
+										<li class="pt-2 border-t border-border/50 mt-2">
+											<div class="text-xs text-muted-foreground px-3 py-1 font-medium">
+												{selectedMailbox.name}
+											</div>
+											<button
+												class="w-full text-left px-3 py-2 rounded-lg transition-colors mt-1
+													{viewMode === 'archive'
+														? 'bg-accent text-accent-foreground'
+														: 'hover:bg-muted/50'}"
+												onclick={selectArchiveView}
+											>
+												<div class="flex items-center gap-3">
+													<Archive class="w-4 h-4 flex-shrink-0" strokeWidth={2} />
+													<span class="flex-1 truncate text-sm font-medium">Archived</span>
+													{#if archiveCount > 0}
+														<span class="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full
+															{viewMode === 'archive'
+																? 'bg-accent-foreground text-accent'
+																: 'bg-muted text-muted-foreground'}">
+															{archiveCount}
+														</span>
+													{/if}
+												</div>
+											</button>
+											{#if viewMode === 'archive'}
+												<button
+													class="w-full text-left px-3 py-2 rounded-lg transition-colors mt-1 hover:bg-muted/50"
+													onclick={selectInboxView}
+												>
+													<div class="flex items-center gap-3">
+														<Mail class="w-4 h-4 flex-shrink-0" strokeWidth={2} />
+														<span class="flex-1 truncate text-sm font-medium">Inbox</span>
+														{#if mailboxMessages?.unreadCount}
+															<span class="flex-shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
+																{mailboxMessages.unreadCount}
+															</span>
+														{/if}
+													</div>
+												</button>
+											{/if}
+										</li>
+									{/if}
 								</ul>
 							{/if}
 						</div>
@@ -298,16 +535,79 @@
 									<Loader2 class="w-6 h-6 text-muted-foreground animate-spin" strokeWidth={2} />
 								</div>
 							</div>
-						{:else if !mailboxMessages || mailboxMessages.messages.length === 0}
+						{:else if filteredMessages.length === 0}
 							<div class="panel-glass p-6 text-center">
+								<Archive class="w-12 h-12 text-muted-foreground mx-auto mb-4" strokeWidth={2} />
 								<p class="text-muted-foreground">
-									{mailboxMessages?.error || `No messages in ${selectedMailbox.name}`}
+									{viewMode === 'archive'
+										? `No archived messages in ${selectedMailbox.name}`
+										: (mailboxMessages?.error || `No messages in ${selectedMailbox.name}`)}
 								</p>
 							</div>
 						{:else}
 							<div class="panel-glass overflow-hidden">
+								<!-- Bulk action toolbar -->
+								{#if showBulkActions}
+									<div class="flex items-center justify-between px-4 py-3 bg-accent/10 border-b border-border">
+										<div class="flex items-center gap-3">
+											<button
+												type="button"
+												class="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+												title={allSelected ? 'Deselect all' : 'Select all'}
+												onclick={allSelected ? clearSelection : selectAll}
+											>
+												{#if allSelected}
+													<CheckSquare class="w-5 h-5" strokeWidth={2} />
+												{:else}
+													<Square class="w-5 h-5" strokeWidth={2} />
+												{/if}
+											</button>
+											<span class="text-sm font-medium">
+												{selectedMessageIds.size} {selectedMessageIds.size === 1 ? 'message' : 'messages'} selected
+											</span>
+										</div>
+										<div class="flex items-center gap-2">
+											<button
+												type="button"
+												class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-accent text-accent-foreground rounded-md hover:bg-accent/90 transition-colors"
+												onclick={bulkArchive}
+											>
+												{#if viewMode === 'archive'}
+													<ArchiveRestore class="w-4 h-4" strokeWidth={2} />
+													<span>Unarchive</span>
+												{:else}
+													<Archive class="w-4 h-4" strokeWidth={2} />
+													<span>Archive</span>
+												{/if}
+											</button>
+											<button
+												type="button"
+												class="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground rounded-md transition-colors"
+												onclick={clearSelection}
+											>
+												Cancel
+											</button>
+										</div>
+									</div>
+								{/if}
+
+								<!-- Select all checkbox (shown when no messages selected) -->
+								{#if !showBulkActions && filteredMessages.length > 0}
+									<div class="flex items-center gap-2 px-4 py-2 bg-muted/30 border-b border-border">
+										<button
+											type="button"
+											class="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+											title="Select all"
+											onclick={selectAll}
+										>
+											<Square class="w-4 h-4" strokeWidth={2} />
+										</button>
+										<span class="text-xs text-muted-foreground">Select all</span>
+									</div>
+								{/if}
+
 								<ul class="divide-y divide-border" role="list">
-									{#each mailboxMessages.messages as message, index}
+									{#each filteredMessages as message, index}
 										{@const isExpanded = expandedId === message.id}
 										<li
 											class={cn(
@@ -316,70 +616,107 @@
 											)}
 											style="animation-delay: {index * 50}ms"
 										>
-											<button
-												type="button"
-												class="w-full text-left p-4 hover:bg-accent/5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-inset"
-												onclick={() => toggleMessage(message.id)}
-												aria-expanded={isExpanded}
-											>
-												<div class="flex items-start gap-3">
-													<!-- Unread indicator -->
-													<div class="flex-shrink-0 mt-1.5">
-														{#if !message.read}
-															<span class="block w-2 h-2 rounded-full bg-accent"></span>
-														{:else}
-															<span class="block w-2 h-2"></span>
-														{/if}
-													</div>
+											<div class="flex items-start gap-2 p-4 hover:bg-accent/5 transition-colors {isSelected(message.id) ? 'bg-accent/10' : ''}">
+												<!-- Checkbox for selection -->
+												<button
+													type="button"
+													class="flex-shrink-0 p-1 text-muted-foreground hover:text-foreground rounded transition-colors self-start"
+													title={isSelected(message.id) ? 'Deselect' : 'Select'}
+													onclick={(e) => {
+														e.stopPropagation();
+														toggleSelection(message.id);
+													}}
+												>
+													{#if isSelected(message.id)}
+														<CheckSquare class="w-4 h-4" strokeWidth={2} />
+													{:else}
+														<Square class="w-4 h-4" strokeWidth={2} />
+													{/if}
+												</button>
 
-													<!-- Message content -->
-													<div class="flex-1 min-w-0">
-														<div class="flex items-center gap-2 mb-1">
-															<span
-																class={typeBadgeVariants({
-																	type: getBadgeType(message.messageType) as
-																		| 'ESCALATION'
-																		| 'ERROR'
-																		| 'HANDOFF'
-																		| 'DONE'
-																		| 'POLECAT_DONE'
-																		| 'TEST'
-																		| 'MESSAGE'
-																})}
-															>
-																{message.messageType}
-															</span>
-															<span class="text-sm font-medium text-foreground">
-																{formatSender(message.from)}
-															</span>
-															<span class="text-xs text-muted-foreground ml-auto flex-shrink-0 font-mono">
-																{formatTime(message.timestamp)}
-															</span>
+												<!-- Main message content (clickable to expand) -->
+												<button
+													type="button"
+													class="flex-1 text-left"
+													onclick={() => toggleMessage(message.id)}
+													aria-expanded={isExpanded}
+												>
+													<div class="flex items-start gap-3">
+														<!-- Unread indicator -->
+														<div class="flex-shrink-0 mt-1.5">
+															{#if !message.read}
+																<span class="block w-2 h-2 rounded-full bg-accent"></span>
+															{:else}
+																<span class="block w-2 h-2"></span>
+															{/if}
 														</div>
 
-														<h3
-															class="font-medium truncate"
-															class:text-foreground={!message.read}
-															class:text-muted-foreground={message.read}
-														>
-															{message.subject}
-														</h3>
+														<!-- Message content -->
+														<div class="flex-1 min-w-0">
+															<div class="flex items-center gap-2 mb-1">
+																<span
+																	class={typeBadgeVariants({
+																		type: getBadgeType(message.messageType) as
+																			| 'ESCALATION'
+																			| 'ERROR'
+																			| 'HANDOFF'
+																			| 'DONE'
+																			| 'POLECAT_DONE'
+																			| 'TEST'
+																			| 'MESSAGE'
+																	})}
+																>
+																	{message.messageType}
+																</span>
+																<span class="text-sm font-medium text-foreground">
+																	{formatSender(message.from)}
+																</span>
+																<span class="text-xs text-muted-foreground ml-auto flex-shrink-0 font-mono">
+																	{formatTime(message.timestamp)}
+																</span>
+															</div>
 
-														{#if !isExpanded}
-															<p class="text-sm text-muted-foreground truncate mt-1">
-																{message.body}
-															</p>
-														{/if}
-													</div>
+															<h3
+																class="font-medium truncate"
+																class:text-foreground={!message.read}
+																class:text-muted-foreground={message.read}
+															>
+																{message.subject}
+															</h3>
 
-													<!-- Expand indicator -->
-													<div class="flex-shrink-0 text-muted-foreground">
-														<ChevronDown
-															class="w-5 h-5 transition-transform {isExpanded ? 'rotate-180' : ''}"
-														/>
+															{#if !isExpanded}
+																<p class="text-sm text-muted-foreground truncate mt-1">
+																	{message.body}
+																</p>
+															{/if}
+														</div>
+
+														<!-- Expand indicator -->
+														<div class="flex-shrink-0 text-muted-foreground">
+															<ChevronDown
+																class="w-5 h-5 transition-transform {isExpanded ? 'rotate-180' : ''}"
+															/>
+														</div>
 													</div>
-												</div>
-											</button>
+												</button>
+
+												<!-- Archive/Unarchive button -->
+												<button
+													type="button"
+													class="flex-shrink-0 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded transition-colors self-start"
+													title={viewMode === 'archive' ? 'Unarchive' : 'Archive'}
+													onclick={(e) => {
+														e.stopPropagation();
+														toggleArchive(message.id);
+													}}
+												>
+													{#if viewMode === 'archive'}
+														<ArchiveRestore class="w-4 h-4" strokeWidth={2} />
+													{:else}
+														<Archive class="w-4 h-4" strokeWidth={2} />
+													{/if}
+												</button>
+											</div>
 
 											<!-- Expanded message body -->
 											{#if isExpanded}
