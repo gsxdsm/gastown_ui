@@ -2,6 +2,23 @@
 	import { GridPattern } from '$lib/components';
 	import { Plus, AlertCircle, Loader2 } from 'lucide-svelte';
 	import { goto } from '$app/navigation';
+	import { CSRF_HEADER } from '$lib/auth/csrf.constants';
+
+	/**
+	 * Get CSRF token from client-accessible cookie
+	 */
+	function getCsrfToken(): string | null {
+		if (typeof document === 'undefined') return null;
+
+		const cookies = document.cookie.split(';');
+		for (const cookie of cookies) {
+			const [name, value] = cookie.trim().split('=');
+			if (name === 'csrf_token_client') {
+				return decodeURIComponent(value);
+			}
+		}
+		return null;
+	}
 
 	interface BeadIssue {
 		id: string;
@@ -125,9 +142,15 @@
 		try {
 			// Update status via API - correct path is /status
 			const newStatus = targetColumn === 'inProgress' ? 'in_progress' : 'todo';
+			const csrfToken = getCsrfToken();
+			const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+			if (csrfToken) {
+				headers[CSRF_HEADER] = csrfToken;
+			}
+
 			const res = await fetch(`/api/gastown/work/issues/${issue.id}/status`, {
 				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
+				headers,
 				body: JSON.stringify({ status: newStatus })
 			});
 
@@ -164,9 +187,15 @@
 		message = null;
 
 		try {
+			const csrfToken = getCsrfToken();
+			const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+			if (csrfToken) {
+				headers[CSRF_HEADER] = csrfToken;
+			}
+
 			const res = await fetch('/api/gastown/work/issues', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers,
 				body: JSON.stringify({
 					title: issueTitle,
 					type: issueType,
