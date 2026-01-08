@@ -129,10 +129,14 @@ function getAgentMeta(agent: GtAgent): string {
 	return parts.join(' • ');
 }
 
-function transformToAgent(agent: GtAgent): DashboardAgent {
+function transformToAgent(agent: GtAgent, rigContext: string): DashboardAgent {
 	const status = mapAgentStatus(agent);
+	// Ensure unique ID by combining rig context with agent address/name
+	const uniqueId = agent.address
+		? `${rigContext}/${agent.address}`
+		: `${rigContext}/${agent.name}`;
 	return {
-		id: agent.address || agent.name,
+		id: uniqueId,
 		name: formatAgentName(agent),
 		task: getTaskDescription(agent),
 		status,
@@ -153,13 +157,13 @@ export const load: PageServerLoad = async () => {
 
 		// Add top-level agents (mayor, deacon)
 		for (const agent of status.agents) {
-			allAgents.push(transformToAgent(agent));
+			allAgents.push(transformToAgent(agent, status.name));
 		}
 
 		// Add rig-level agents
 		for (const rig of status.rigs) {
 			for (const agent of rig.agents) {
-				allAgents.push(transformToAgent(agent));
+				allAgents.push(transformToAgent(agent, rig.name));
 			}
 		}
 
