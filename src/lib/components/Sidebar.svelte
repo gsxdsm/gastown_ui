@@ -126,7 +126,7 @@
 
 	// Group items by category
 	const navGroups = $derived.by((): NavGroup[] => {
-		const mainIds = ['dashboard', 'work', 'agents', 'mail'];
+		const mainIds = ['dashboard', 'work', 'agents', 'mail', 'kanban'];
 		const operationsIds = ['queue', 'convoys', 'workflows'];
 		const systemIds = ['rigs', 'health', 'activity', 'watchdog', 'crew', 'dogs', 'settings', 'logs', 'escalations'];
 
