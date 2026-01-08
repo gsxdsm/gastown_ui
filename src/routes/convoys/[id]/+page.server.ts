@@ -54,17 +54,20 @@ function determineConvoyStatus(convoy: ConvoyRaw): ConvoyStatus {
 		return 'complete';
 	}
 
-	const hasBlocked = convoy.tracked.some((t) => t.status === 'blocked');
+	// Normalize null tracked to empty array for safe iteration
+	const tracked = convoy.tracked ?? [];
+
+	const hasBlocked = tracked.some((t) => t.status === 'blocked');
 	if (hasBlocked) {
 		return 'stuck';
 	}
 
-	const hasInProgress = convoy.tracked.some((t) => t.status === 'in_progress');
+	const hasInProgress = tracked.some((t) => t.status === 'in_progress');
 	if (hasInProgress) {
 		return 'active';
 	}
 
-	const allOpen = convoy.tracked.every((t) => t.status === 'open' || t.status === 'unknown');
+	const allOpen = tracked.every((t) => t.status === 'open' || t.status === 'unknown');
 	if (allOpen && convoy.total > 0) {
 		return 'stale';
 	}
