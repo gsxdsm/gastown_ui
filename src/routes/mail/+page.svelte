@@ -375,39 +375,43 @@
 													<!-- Expand indicator -->
 													<div class="flex-shrink-0 text-muted-foreground">
 														<ChevronDown
-															class="w-5 h-5 transition-transform {isExpanded ? 'rotate-180' : ''}"
+															class="w-5 h-5 transition-transform duration-300 ease-out {isExpanded ? 'rotate-180' : ''}"
 														/>
 													</div>
 												</div>
 											</button>
 
 											<!-- Expanded message body -->
-											{#if isExpanded}
-												<div
-													class="px-4 pb-4 pt-0 ml-9 border-l-2 border-accent/30 animate-blur-fade-up"
-												>
-													<div class="prose prose-sm prose-invert max-w-none">
-														<pre
-															class="whitespace-pre-wrap text-sm text-foreground bg-muted/30 p-4 rounded-md font-mono">{message.body}</pre>
-													</div>
-													<div class="mt-3 flex items-center justify-between">
-														<div class="flex items-center gap-4 text-xs text-muted-foreground">
-															<span>From: {message.from}</span>
-															<span>ID: {message.id}</span>
-															{#if message.threadId}
-																<span>Thread: {message.threadId.slice(-8)}</span>
-															{/if}
+											<div
+												class="grid transition-[grid-template-rows] duration-300 ease-out {isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}"
+											>
+												<div class="overflow-hidden">
+													<div
+														class="px-4 pb-4 pt-0 ml-9 border-l-2 border-accent/30 transition-opacity duration-300 {isExpanded ? 'opacity-100' : 'opacity-0'}"
+													>
+														<div class="prose prose-sm prose-invert max-w-none">
+															<pre
+																class="whitespace-pre-wrap text-sm text-foreground bg-muted/30 p-4 rounded-md font-mono">{message.body}</pre>
 														</div>
-														<a
-															href="/mail/{message.id}"
-															class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-accent hover:text-accent/80 bg-accent/10 hover:bg-accent/20 rounded-md transition-colors"
-														>
-															View full message
-															<ChevronRight class="w-3.5 h-3.5" />
-														</a>
+														<div class="mt-3 flex items-center justify-between">
+															<div class="flex items-center gap-4 text-xs text-muted-foreground">
+																<span>From: {message.from}</span>
+																<span>ID: {message.id}</span>
+																{#if message.threadId}
+																	<span>Thread: {message.threadId.slice(-8)}</span>
+																{/if}
+															</div>
+															<a
+																href="/mail/{message.id}"
+																class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-accent hover:text-accent/80 bg-accent/10 hover:bg-accent/20 rounded-md transition-colors"
+															>
+																View full message
+																<ChevronRight class="w-3.5 h-3.5" />
+															</a>
+														</div>
 													</div>
 												</div>
-											{/if}
+											</div>
 										</li>
 									{/each}
 								</ul>
