@@ -20,6 +20,7 @@ export default defineConfig({
 		host: '0.0.0.0', // Listen on all network interfaces
 		port: 5173,
 		strictPort: false,
+		allowedHosts: true, // Allow all hosts
 		watch: {
 			ignored: ['**/.beads/**', '**/node_modules/**']
 		}
