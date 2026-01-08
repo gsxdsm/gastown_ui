@@ -7,13 +7,17 @@
 	// Local state for issues (updates after creation)
 	let todoIssues = $state<typeof data.todo>([]);
 	let inProgressIssues = $state<typeof data.inProgress>([]);
+	let inReviewIssues = $state<typeof data.inReview>([]);
 	let doneIssues = $state<typeof data.done>([]);
+	let cancelledIssues = $state<typeof data.cancelled>([]);
 
 	// Sync with server data
 	$effect(() => {
 		todoIssues = [...data.todo];
 		inProgressIssues = [...data.inProgress];
+		inReviewIssues = [...data.inReview];
 		doneIssues = [...data.done];
+		cancelledIssues = [...data.cancelled];
 	});
 
 	// Modal state
@@ -137,7 +141,7 @@
 			{/if}
 
 			<!-- Kanban Board -->
-			<div class="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+			<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-6">
 				<!-- Todo Column -->
 				<div class="panel-glass rounded-lg overflow-hidden">
 					<div class="px-4 py-3 border-b border-border bg-muted/30">
@@ -239,6 +243,78 @@
 									onclick={() => navigateToIssue(issue.id)}
 									class="w-full text-left p-3 bg-card rounded-lg border border-border
 									       hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer opacity-75"
+								>
+									<div class="flex items-start gap-2 mb-2">
+										<TypeIcon class="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+										<span class="text-sm font-medium text-foreground line-clamp-2 line-through">{issue.title}</span>
+									</div>
+									<div class="flex items-center gap-2">
+										<span class="font-mono text-xs text-primary">{issue.id}</span>
+										<span class="text-xs px-1.5 py-0.5 rounded {getPriorityBadge(issue.priority).color} text-white">
+											{getPriorityBadge(issue.priority).label}
+										</span>
+									</div>
+								</button>
+							{/each}
+						{/if}
+					</div>
+				</div>
+
+				<!-- In Review Column -->
+				<div class="panel-glass rounded-lg overflow-hidden">
+					<div class="px-4 py-3 border-b border-border bg-muted/30">
+						<h2 class="font-semibold text-foreground flex items-center gap-2">
+							<span class="w-3 h-3 rounded-full bg-purple-500"></span>
+							In Review
+							<span class="ml-auto text-sm text-muted-foreground">{inReviewIssues.length}</span>
+						</h2>
+					</div>
+					<div class="p-3 space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto">
+						{#if inReviewIssues.length === 0}
+							<p class="text-sm text-muted-foreground text-center py-4">No items</p>
+						{:else}
+							{#each inReviewIssues as issue}
+								{@const TypeIcon = getTypeIcon(issue.type)}
+								<button
+									onclick={() => navigateToIssue(issue.id)}
+									class="w-full text-left p-3 bg-card rounded-lg border border-border
+									       hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer"
+								>
+									<div class="flex items-start gap-2 mb-2">
+										<TypeIcon class="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+										<span class="text-sm font-medium text-foreground line-clamp-2">{issue.title}</span>
+									</div>
+									<div class="flex items-center gap-2">
+										<span class="font-mono text-xs text-primary">{issue.id}</span>
+										<span class="text-xs px-1.5 py-0.5 rounded {getPriorityBadge(issue.priority).color} text-white">
+											{getPriorityBadge(issue.priority).label}
+										</span>
+									</div>
+								</button>
+							{/each}
+						{/if}
+					</div>
+				</div>
+
+				<!-- Cancelled Column -->
+				<div class="panel-glass rounded-lg overflow-hidden">
+					<div class="px-4 py-3 border-b border-border bg-muted/30">
+						<h2 class="font-semibold text-foreground flex items-center gap-2">
+							<span class="w-3 h-3 rounded-full bg-gray-500"></span>
+							Cancelled
+							<span class="ml-auto text-sm text-muted-foreground">{cancelledIssues.length}</span>
+						</h2>
+					</div>
+					<div class="p-3 space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto">
+						{#if cancelledIssues.length === 0}
+							<p class="text-sm text-muted-foreground text-center py-4">No items</p>
+						{:else}
+							{#each cancelledIssues as issue}
+								{@const TypeIcon = getTypeIcon(issue.type)}
+								<button
+									onclick={() => navigateToIssue(issue.id)}
+									class="w-full text-left p-3 bg-card rounded-lg border border-border
+									       hover:border-primary/50 hover:shadow-sm transition-all cursor-pointer opacity-50"
 								>
 									<div class="flex items-start gap-2 mb-2">
 										<TypeIcon class="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
