@@ -11,6 +11,7 @@
 		Bot,
 		Mail,
 		ClipboardList,
+		Kanban,
 		Truck,
 		FlaskConical,
 		Factory,
@@ -52,6 +53,7 @@
 		{ id: 'mail', label: 'Mail', href: '/mail', icon: Mail, badge: unreadMail || undefined },
 		// Core (in overflow)
 		{ id: 'queue', label: 'Queue', href: '/queue', icon: ClipboardList },
+		{ id: 'kanban', label: 'Kanban', href: '/kanban', icon: Kanban },
 		// Operations
 		{ id: 'convoys', label: 'Convoys', href: '/convoys', icon: Truck },
 		{ id: 'workflows', label: 'Workflows', href: '/workflows', icon: FlaskConical },
