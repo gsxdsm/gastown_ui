@@ -1,6 +1,23 @@
 <script lang="ts">
 	import { GridPattern } from '$lib/components';
 	import { ClipboardList, PenLine, Target, Truck } from 'lucide-svelte';
+	import { CSRF_HEADER } from '$lib/auth/csrf.constants';
+
+	/**
+	 * Get CSRF token from client-accessible cookie
+	 */
+	function getCsrfToken(): string | null {
+		if (typeof document === 'undefined') return null;
+
+		const cookies = document.cookie.split(';');
+		for (const cookie of cookies) {
+			const [name, value] = cookie.trim().split('=');
+			if (name === 'csrf_token_client') {
+				return decodeURIComponent(value);
+			}
+		}
+		return null;
+	}
 
 	let { data } = $props();
 
@@ -52,9 +69,15 @@
 		issueMessage = null;
 
 		try {
+			const csrfToken = getCsrfToken();
+			const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+			if (csrfToken) {
+				headers[CSRF_HEADER] = csrfToken;
+			}
+
 			const res = await fetch('/api/gastown/work/issues', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers,
 				body: JSON.stringify({
 					title: issueTitle,
 					type: issueType,
@@ -88,9 +111,15 @@
 		convoyMessage = null;
 
 		try {
+			const csrfToken = getCsrfToken();
+			const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+			if (csrfToken) {
+				headers[CSRF_HEADER] = csrfToken;
+			}
+
 			const res = await fetch('/api/gastown/work/convoys', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers,
 				body: JSON.stringify({
 					name: convoyName,
 					issues: selectedIssues
@@ -120,9 +149,15 @@
 		slingMessage = null;
 
 		try {
+			const csrfToken = getCsrfToken();
+			const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+			if (csrfToken) {
+				headers[CSRF_HEADER] = csrfToken;
+			}
+
 			const res = await fetch('/api/gastown/work/sling', {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers,
 				body: JSON.stringify({
 					issue: slingIssue,
 					rig: slingRig
