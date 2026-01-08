@@ -26,6 +26,11 @@
 	let loading = $state(true);
 	let error = $state<string | null>(null);
 
+	// Drag and drop state
+	let draggedIssue = $state<BeadIssue | null>(null);
+	let draggedFromColumn = $state<'todo' | 'inProgress' | null>(null);
+	let dropping = $state(false);
+
 	// Modal state for creating issues
 	let showModal = $state(false);
 	let issueTitle = $state('');
@@ -82,6 +87,74 @@
 	function formatAssignee(assignee?: string): string {
 		if (!assignee) return 'Unassigned';
 		return assignee.split('/').pop() || assignee;
+	}
+
+	// Drag and drop handlers
+	function handleDragStart(issue: BeadIssue, column: 'todo' | 'inProgress', e: DragEvent) {
+		draggedIssue = issue;
+		draggedFromColumn = column;
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', issue.id);
+		}
+	}
+
+	function handleDragOver(e: DragEvent) {
+		e.preventDefault();
+		if (e.dataTransfer) {
+			e.dataTransfer.dropEffect = 'move';
+		}
+	}
+
+	function handleDragLeave(e: DragEvent) {
+		// Optional: visual feedback when dragging leaves a column
+	}
+
+	async function handleDrop(targetColumn: 'todo' | 'inProgress', e: DragEvent) {
+		e.preventDefault();
+		if (!draggedIssue || !draggedFromColumn || draggedFromColumn === targetColumn) {
+			draggedIssue = null;
+			draggedFromColumn = null;
+			return;
+		}
+
+		dropping = true;
+		const issue = draggedIssue;
+		const fromColumn = draggedFromColumn;
+
+		try {
+			// Update status via API - correct path is /status
+			const newStatus = targetColumn === 'inProgress' ? 'in_progress' : 'todo';
+			const res = await fetch(`/api/gastown/work/issues/${issue.id}/status`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ status: newStatus })
+			});
+
+			if (!res.ok) {
+				throw new Error('Failed to update issue status');
+			}
+
+			// Move the card in local state
+			if (fromColumn === 'todo') {
+				kanbanData.todo = kanbanData.todo.filter(i => i.id !== issue.id);
+			} else {
+				kanbanData.inProgress = kanbanData.inProgress.filter(i => i.id !== issue.id);
+			}
+
+			if (targetColumn === 'todo') {
+				kanbanData.todo.push({ ...issue, status: 'open' });
+			} else {
+				kanbanData.inProgress.push({ ...issue, status: 'in_progress', assignee: 'nux' });
+			}
+		} catch (err) {
+			console.error('Failed to move issue:', err);
+			// Optionally show error message to user
+		} finally {
+			draggedIssue = null;
+			draggedFromColumn = null;
+			dropping = false;
+		}
 	}
 
 	// Create new issue
@@ -181,7 +254,12 @@
 				<!-- Kanban Board -->
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 					<!-- Todo Column -->
-					<section class="panel-glass p-4">
+					<section
+						class="panel-glass p-4 {dropping && draggedFromColumn !== 'todo' ? 'ring-2 ring-primary' : ''}"
+						ondragover={handleDragOver}
+						ondragleave={handleDragLeave}
+						ondrop={(e) => handleDrop('todo', e)}
+					>
 						<div class="flex items-center justify-between mb-4">
 							<h2 class="font-semibold text-foreground flex items-center gap-2">
 								<span class="w-3 h-3 rounded-full bg-warning"></span>
@@ -194,9 +272,12 @@
 							<div class="space-y-3">
 								{#each kanbanData.todo as issue (issue.id)}
 									<div
+										draggable="true"
+										ondragstart={(e) => handleDragStart(issue, 'todo', e)}
 										onclick={() => navigateToIssue(issue.id)}
 										class="p-4 bg-muted/30 rounded-lg border border-border hover:border-primary/50
-											   cursor-pointer transition-all hover:shadow-md"
+											   cursor-grab active:cursor-grabbing transition-all hover:shadow-md
+											   {draggedIssue?.id === issue.id ? 'opacity-50' : ''}"
 										role="button"
 										tabindex="0"
 										onkeydown={(e) => e.key === 'Enter' && navigateToIssue(issue.id)}
@@ -222,7 +303,12 @@
 					</section>
 
 					<!-- In Progress Column -->
-					<section class="panel-glass p-4">
+					<section
+						class="panel-glass p-4 {dropping && draggedFromColumn !== 'inProgress' ? 'ring-2 ring-primary' : ''}"
+						ondragover={handleDragOver}
+						ondragleave={handleDragLeave}
+						ondrop={(e) => handleDrop('inProgress', e)}
+					>
 						<div class="flex items-center justify-between mb-4">
 							<h2 class="font-semibold text-foreground flex items-center gap-2">
 								<span class="w-3 h-3 rounded-full bg-info"></span>
@@ -235,9 +321,12 @@
 							<div class="space-y-3">
 								{#each kanbanData.inProgress as issue (issue.id)}
 									<div
+										draggable="true"
+										ondragstart={(e) => handleDragStart(issue, 'inProgress', e)}
 										onclick={() => navigateToIssue(issue.id)}
 										class="p-4 bg-muted/30 rounded-lg border border-border hover:border-primary/50
-											   cursor-pointer transition-all hover:shadow-md"
+											   cursor-grab active:cursor-grabbing transition-all hover:shadow-md
+											   {draggedIssue?.id === issue.id ? 'opacity-50' : ''}"
 										role="button"
 										tabindex="0"
 										onkeydown={(e) => e.key === 'Enter' && navigateToIssue(issue.id)}
