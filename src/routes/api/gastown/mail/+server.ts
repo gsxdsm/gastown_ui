@@ -66,7 +66,12 @@ export const GET: RequestHandler = async () => {
 			}
 		}
 
-		return json(mailboxes);
+		// Deduplicate mailboxes by ID (keep first occurrence)
+		const uniqueMailboxes = Array.from(
+			new Map(mailboxes.map((mb) => [mb.id, mb])).values()
+		);
+
+		return json(uniqueMailboxes);
 	} catch (error) {
 		console.error('Failed to fetch mailboxes:', error);
 		return json(
