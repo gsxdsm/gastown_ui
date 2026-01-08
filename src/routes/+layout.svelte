@@ -1,6 +1,6 @@
 <script lang="ts">
 	import '../app.css';
-	import { SkipLink, Announcer, BottomNav, Sidebar, GlobalSearch, NavigationLoader } from '$lib/components';
+	import { SkipLink, Announcer, BottomNav, Sidebar, GlobalSearch, NavigationLoader, ToastContainer } from '$lib/components';
 	import { preloadRoute } from '$lib/preload';
 	import { page } from '$app/stores';
 	import { afterNavigate } from '$app/navigation';
@@ -220,3 +220,6 @@
 		{@render children()}
 	</div>
 {/if}
+
+<!-- Toast notification container -->
+<ToastContainer position="bottom-right" />
