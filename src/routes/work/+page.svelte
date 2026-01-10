@@ -2,6 +2,7 @@
 	import { GridPattern, IssueTypeSelector, SkeletonCard, ErrorState, EmptyState, FloatingActionButton } from '$lib/components';
 	import { ClipboardList, PenLine, Target, Truck, ChevronDown, CheckSquare, Bug, Lightbulb, BookOpen, Plus } from 'lucide-svelte';
 	import { onMount } from 'svelte';
+	import { invalidate } from '$app/navigation';
 	import { hapticMedium, hapticSuccess, hapticError } from '$lib/utils/haptics';
 	import { cn } from '$lib/utils';
 	import { z } from 'zod';
@@ -169,8 +170,8 @@
 
 			hapticSuccess(); // Success haptic on successful submission
 			issueMessage = { type: 'success', text: `Created issue: ${data.id}` };
-			// Add to local issues list
-			localIssues = [...localIssues, data];
+			// Invalidate server data to refresh all lists
+			await invalidate('url');
 			// Reset form
 			issueTitle = '';
 			issueType = 'task';
