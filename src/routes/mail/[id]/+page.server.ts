@@ -6,7 +6,7 @@
 
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 
 const execAsync = promisify(exec);
@@ -76,6 +76,11 @@ function transformMessage(msg: GtMailMessage): MailMessage {
 
 export const load: PageServerLoad = async ({ params }) => {
 	const { id } = params;
+
+	// Redirect /mail/agents to /agents (common user mistake)
+	if (id === 'agents') {
+		throw redirect(307, '/agents');
+	}
 
 	try {
 		const { stdout } = await execAsync(`gt mail read ${id} --json`, {
