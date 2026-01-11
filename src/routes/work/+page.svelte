@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { GridPattern, IssueTypeSelector, SkeletonCard, ErrorState, EmptyState, FloatingActionButton } from '$lib/components';
-	import { ClipboardList, PenLine, Target, Truck, ChevronDown, CheckSquare, Bug, Lightbulb, BookOpen, Plus } from 'lucide-svelte';
+	import { ClipboardList, PenLine, Target, Truck, ChevronDown, CheckSquare, Bug, Lightbulb, BookOpen, Plus, Columns3 } from 'lucide-svelte';
 	import { onMount } from 'svelte';
 	import { hapticMedium, hapticSuccess, hapticError } from '$lib/utils/haptics';
 	import { cn } from '$lib/utils';
@@ -275,12 +275,21 @@
 
 	<div class="relative z-10">
 		<header class="sticky top-0 z-50 panel-glass px-4 h-[72px] relative">
-			<div class="container h-full flex items-center gap-3">
-				<div class="w-1.5 h-8 bg-primary rounded-sm shadow-glow shrink-0" aria-hidden="true"></div>
-				<div>
-					<h1 class="text-2xl font-display font-semibold text-foreground">Work Management</h1>
-					<p class="text-sm text-muted-foreground">Create issues, convoys, and assign work</p>
+			<div class="container h-full flex items-center justify-between gap-3">
+				<div class="flex items-center gap-3">
+					<div class="w-1.5 h-8 bg-primary rounded-sm shadow-glow shrink-0" aria-hidden="true"></div>
+					<div>
+						<h1 class="text-2xl font-display font-semibold text-foreground">Work Management</h1>
+						<p class="text-sm text-muted-foreground">Create issues, convoys, and assign work</p>
+					</div>
 				</div>
+				<a
+					href="/work/kanban"
+					class="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors"
+				>
+					<Columns3 class="w-4 h-4" strokeWidth={2} />
+					<span class="text-sm font-medium">Kanban Board</span>
+				</a>
 			</div>
 			<div class="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" aria-hidden="true"></div>
 		</header>
