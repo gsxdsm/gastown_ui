@@ -73,3 +73,5 @@ export { default as KeyboardHelpDialog } from './KeyboardHelpDialog.svelte';
 export { default as ErrorBoundary } from './ErrorBoundary.svelte';
 export { default as ApiError } from './ApiError.svelte';
 export { default as ErrorState } from './ErrorState.svelte';
+export { default as KanbanCard, kanbanCardVariants, type KanbanCardPriority } from './KanbanCard.svelte';
+export { default as KanbanColumn, kanbanColumnVariants, type KanbanColumnStatus } from './KanbanColumn.svelte';
