@@ -35,13 +35,6 @@ export interface MailMessage {
 	threadId: string;
 }
 
-interface GtPolecat {
-	rig: string;
-	name: string;
-	state: string;
-	session_running: boolean;
-}
-
 export interface Agent {
 	id: string;
 	name: string;
@@ -117,10 +110,24 @@ export const load: PageServerLoad = async () => {
 
 	try {
 		// 2. Get rigs
-		const { stdout: rigsOutput } = await execAsync('gt rigs --json', {
+		const { stdout: rigsOutput } = await execAsync('gt rig list', {
 			timeout: 5000
 		});
-		const rigs: string[] = JSON.parse(rigsOutput);
+		// Parse the output format:
+		// Rigs in /home/user/gt:
+		//
+		//   ui_gastown
+		//     Polecats: 2  Crew: 2
+		//     Agents: [refinery witness mayor]
+		const lines = rigsOutput.trim().split('\n');
+		const rigs: string[] = [];
+		for (const line of lines) {
+			const trimmed = line.trim();
+			// Rig names are indented with 2 spaces and not metadata lines
+			if (trimmed && !trimmed.startsWith('Rigs') && !trimmed.includes('Polecats:') && !trimmed.includes('Agents:')) {
+				rigs.push(trimmed);
+			}
+		}
 
 		for (const rig of rigs) {
 			// 3. Add Witness for each rig
@@ -143,21 +150,33 @@ export const load: PageServerLoad = async () => {
 
 			// 5. Get polecats for this rig
 			try {
-				const { stdout: polecatsOutput } = await execAsync(`gt polecat list ${rig} --json`, {
+				const { stdout: polecatsOutput } = await execAsync(`gt polecat list ${rig}`, {
 					timeout: 5000
 				});
-				const polecats: GtPolecat[] = JSON.parse(polecatsOutput);
-
-				for (const polecat of polecats) {
-					agents.push({
-						id: `${rig}/${polecat.name}`,
-						name: polecat.name,
-						displayName: getDisplayName(`${rig}/${polecat.name}`),
-						type: 'polecat',
-						rig,
-						state: polecat.state,
-						sessionRunning: polecat.session_running
-					});
+				// Parse the output format:
+				// Active Polecats
+				//
+				//   ● ui_gastown/furiosa  done
+				//   ● ui_gastown/nux  working
+				//   ● ui_gastown/slit  stuck
+				const lines = polecatsOutput.trim().split('\n');
+				for (const line of lines) {
+					// Each polecat line starts with "● " and contains "rig/name  state"
+					const match = line.match(/●\s+(\S+\/\S+)\s+(\S+)/);
+					if (match) {
+						const fullName = match[1];
+						const state = match[2];
+						const name = fullName.split('/').pop() || fullName;
+						agents.push({
+							id: fullName,
+							name: name,
+							displayName: getDisplayName(fullName),
+							type: 'polecat',
+							rig,
+							state: state,
+							sessionRunning: true // All listed polecats are active
+						});
+					}
 				}
 			} catch (e) {
 				// If no polecats or error, continue
