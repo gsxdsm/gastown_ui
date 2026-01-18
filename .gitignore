@@ -92,3 +92,4 @@ build/
 .claude/
 bundle-stats.html
 .automaker/
+.worktrees/
